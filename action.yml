@@ -1,0 +1,35 @@
+name: 'Test with Selenium'
+description: 'Runs the OrthoFi Selenium pipeline. Accepts tag parameters to filter tests.'
+
+inputs:
+  browser:
+    description: 'Which browser - Chrome or Firefox?'
+    required: true
+  tag:
+    description: 'Which subset of tests to run - not required'
+    required: false
+  github-build-token:
+    description: 'The token for checking out the Selenium repository'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Authenticate GitHub
+      shell: pwsh
+      run: 
+        echo "${{ inputs.github-build-token }}" |
+        gh auth login --with-token
+    - name: Initialize Selenium tests
+      shell: pwsh
+      run:
+        gh workflow run deploy.yml -R OrthoFi/tests-selenium -f "tags=${{ inputs.tag }}" -f "resetdb=true" -f "browser=${{ inputs.browser }}" -f "docs=false"
+    - name: Get Selenium workflow ID
+      id: selenium-workflow
+      shell: pwsh
+      run:
+        echo ::set-output name=WORKFLOW_ID::$(gh api -X GET https://api.github.com/repos/OrthoFi/tests-selenium/actions/runs | jq .workflow_runs[0].id)
+    - name: Monitor Selenium tests
+      shell: pwsh
+      run:
+        gh run watch -R OrthoFi/tests-selenium ${{ steps.selenium-workflow.outputs.WORKFLOW_ID }}
